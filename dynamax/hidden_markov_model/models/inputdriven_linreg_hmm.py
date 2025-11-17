@@ -24,7 +24,7 @@ from dynamax.utils.bijectors import RealToPSDBijector
 
 class ParamsInputDrivenHMMTransitions(NamedTuple):
     """Parameters for the transitions of an input-driven HMM."""
-    weights: Union[Float[Array, "num_states num_states input_dim"], ParameterProperties]    # CHECK??
+    weights: Union[Float[Array, "num_states num_states input_dim"], ParameterProperties]
     biases: Union[Float[Array, "num_states num_states"], ParameterProperties]
 
 
@@ -91,7 +91,7 @@ class InputDrivenHMMTransitions(HMMTransitions):
             key_w, key_b = jr.split(key)
             weights = jr.normal(key_w, (self.num_states, self.num_states, self.input_dim)) * 0.01
             biases = jr.normal(key_b, (self.num_states, self.num_states)) * 0.01
-        else:                                                                               # CHECK??
+        else:
             raise ValueError(f"Unknown initialization method: {method}")
         # Package the results into dictionaries
         params = ParamsInputDrivenHMMTransitions(weights=weights, biases=biases)
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     print("Initialized parameters:", true_params)
     true_states, emissions = true_idGLMHMM.sample(true_params, key2, num_timesteps, inputs)
 
-    # Make a new Gaussian HMM and fit it with EM
+    # Make a new LinReg HMM and fit it with EM
     new_idGLMHMM = InputDrivenLinearRegressionHMM(num_states, input_dim, emission_dim)
     params, props = new_idGLMHMM.initialize(key3)
     params, lls = new_idGLMHMM.fit_em(params, props, emissions, inputs, num_iters=10)
