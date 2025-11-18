@@ -8,6 +8,7 @@ from dynamax.hidden_markov_model.models.gaussian_hmm import GaussianHMM, Diagona
 from dynamax.hidden_markov_model.models.gmm_hmm import GaussianMixtureHMM, DiagonalGaussianMixtureHMM
 from dynamax.hidden_markov_model.models.linreg_hmm import LinearRegressionHMM
 from dynamax.hidden_markov_model.models.inputdriven_linreg_hmm import InputDrivenLinearRegressionHMM
+from dynamax.hidden_markov_model.models.input_driven_gaussian_hmm import InputDrivenGaussianHMM
 from dynamax.hidden_markov_model.models.logreg_hmm import LogisticRegressionHMM
 from dynamax.hidden_markov_model.models.multinomial_hmm import MultinomialHMM
 from dynamax.hidden_markov_model.models.poisson_hmm import PoissonHMM
