@@ -26,6 +26,8 @@ CONFIGS = [
     (models.LogisticRegressionHMM, dict(num_states=4, input_dim=5), jnp.ones((NUM_TIMESTEPS, 5))),
     (models.MultinomialHMM, dict(num_states=4, emission_dim=3, num_classes=5, num_trials=10), None),
     (models.PoissonHMM, dict(num_states=4, emission_dim=3), None),
+    (models.InputDrivenGaussianHMM, dict(num_states=4, emission_dim=3, input_dim=5), jr.normal(jr.PRNGKey(0),(NUM_TIMESTEPS, 5))),
+    (models.InputDrivenLinearRegressionHMM, dict(num_states=2, emission_dim=3, input_dim=5), jr.normal(jr.PRNGKey(0),(NUM_TIMESTEPS, 5))),
 ]
 
 
