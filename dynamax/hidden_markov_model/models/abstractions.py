@@ -273,6 +273,7 @@ class HMMTransitions(ABC):
                 vmap(lambda state: \
                     self.distribution(params, state, inpt).probs_parameter())(
                         jnp.arange(self.num_states))
+            # Skip the first input, as it's already accounted for in InitialState
             next_inputs = tree_map(lambda x: x[1:], inputs)
             return vmap(f)(next_inputs)
         else:
@@ -295,7 +296,7 @@ class HMMTransitions(ABC):
             PyTree of sufficient statistics for updating the transition distribution
 
         """
-        return posterior.trans_probs, pytree_slice(inputs, slice(1, None))
+        return posterior.trans_probs, inputs
 
     def initialize_m_step_state(self, params: ParameterSet, props:PropertySet) -> Any:
         """Initialize any required state for the M step.
