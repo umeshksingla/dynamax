@@ -291,6 +291,8 @@ def test_hmm_non_stationary(key=0, num_timesteps=10, num_states=5, scale=1):
     post = core.hmm_smoother(initial_probs, transition_matrices, log_lkhds)
     post2 = core.hmm_smoother(initial_probs, None, log_lkhds, trans_mat_callable)
     assert jnp.allclose(post.smoothed_probs, post2.smoothed_probs, atol=1e-4)
+    assert jnp.shape(post.trans_probs)[0] == num_timesteps - 1
+    assert jnp.shape(post2.trans_probs)[0] == num_timesteps - 1
 
     # Run Viterbi
     mode = core.hmm_posterior_mode(initial_probs, transition_matrices, log_lkhds)
