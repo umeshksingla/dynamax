@@ -145,18 +145,18 @@ class GaussianHMMEmissions(HMMEmissions):
         return None
 
     def m_step(
-            self, 
-            params: ParamsGaussianHMMEmissions, 
-            props: ParamsGaussianHMMEmissions, 
-            batch_stats: Dict[str, Float[Array, "..."]], 
+            self,
+            params: ParamsGaussianHMMEmissions,
+            props: ParamsGaussianHMMEmissions,
+            batch_stats: Dict[str, Float[Array, "..."]],
             m_step_state: Any
-        ) -> Tuple[ParamsGaussianHMMEmissions, Any]:
+    ) -> Tuple[ParamsGaussianHMMEmissions, Any]:
         """Perform the M-step of the EM algorithm."""
         if props.covs.trainable and props.means.trainable:
             niw_prior = NormalInverseWishart(loc=self.emission_prior_mean,
-                                            mean_concentration=self.emission_prior_conc,
-                                            df=self.emission_prior_df,
-                                            scale=self.emission_prior_scale)
+                                             mean_concentration=self.emission_prior_conc,
+                                             df=self.emission_prior_df,
+                                             scale=self.emission_prior_scale)
 
             # Find the posterior parameters of the NIW distribution
             def _single_m_step(stats):
@@ -164,8 +164,16 @@ class GaussianHMMEmissions(HMMEmissions):
                 niw_posterior = niw_posterior_update(niw_prior, (stats['sum_x'], stats['sum_xxT'], stats['sum_w']))
                 return niw_posterior.mode()
 
+            def _enforce_psd(sigma, jitter=1e-6):
+                # 1. Symmetrize to fix numerical asymmetry
+                sigma_sym = (sigma + sigma.T) / 2
+                # 2. Add diagonal jitter to ensure positive eigenvalues
+                return sigma_sym + jitter * jnp.eye(sigma_sym.shape[-1])
+
             emission_stats = pytree_sum(batch_stats, axis=0)
             covs, means = vmap(_single_m_step)(emission_stats)
+
+            covs = vmap(_enforce_psd)(covs)
             params = params._replace(means=means, covs=covs)
 
         elif props.covs.trainable and not props.means.trainable:
