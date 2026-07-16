@@ -2,6 +2,7 @@
 Linear regression hidden Markov model (HMM) with state-dependent weights.
 """
 from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
+import jax
 import jax.numpy as jnp
 import jax.random as jr
 from jax import vmap
@@ -81,18 +82,55 @@ class LinearRegressionHMMEmissions(HMMEmissions):
         if method.lower() == "kmeans":
             assert emissions is not None, "Need emissions to initialize the model with K-Means!"
             from sklearn.cluster import KMeans
-            key, subkey = jr.split(key)  # Create a random seed for SKLearn.
-            sklearn_key = jr.randint(subkey, shape=(), minval=0, maxval=2147483647)  # Max int32 value.
-            km = KMeans(self.num_states, random_state=int(sklearn_key)).fit(emissions.reshape(-1, self.emission_dim))
+            key, subkey1, subkey2, subkey3 = jr.split(key, 4)  # Create a random seed for SKLearn.
+            sklearn_key = jr.randint(subkey1, shape=(), minval=0, maxval=2147483647)  # Max int32 value.
+
+            emissions_flat = jnp.array(emissions.reshape(-1, self.emission_dim))
+            num_points = emissions_flat.shape[0]
+
+            # subset_size = max(self.num_states * 10, int(num_points * 0.15))
+            # subset_indices = jr.choice(key=subkey2, a=num_points, shape=(subset_size,), replace=False)
+            # emissions_subset = emissions_flat[subset_indices]
+            # km = KMeans(self.num_states, random_state=int(sklearn_key)).fit(emissions_subset)
+
+            km = KMeans(self.num_states, random_state=int(sklearn_key)).fit(emissions_flat)
             _emission_weights = jnp.zeros((self.num_states, self.emission_dim, self.input_dim))
+
             _emission_biases = jnp.array(km.cluster_centers_)
-            _emission_covs = jnp.tile(jnp.eye(self.emission_dim)[None, :, :], (self.num_states, 1, 1))
+            _emission_biases = _emission_biases # + jr.normal(subkey3, _emission_biases.shape) * 0.1
+
+            # random_indices = jr.choice(
+            #     key=subkey3,
+            #     a=num_points,
+            #     shape=(self.num_states,),
+            #     replace=False
+            # )
+            # _emission_biases = emissions_flat[random_indices]
+            _emission_covs = 0.01 * jnp.tile(jnp.eye(self.emission_dim)[None, :, :], (self.num_states, 1, 1))
+
+            # # Using kmeans to also initialize covs
+            # emissions_flat = emissions.reshape(-1, self.emission_dim)
+            # initial_covs = []
+            # for i in range(self.num_states):
+            #     state_data = emissions_flat[km.labels_ == i]
+            #     if len(state_data) > 1:
+            #         # cov = jnp.cov(state_data, rowvar=False)
+            #         variances = jnp.var(state_data, axis=0)
+            #     else:
+            #         # cov = jnp.eye(self.emission_dim) * 0.1
+            #         variances = jnp.full((self.emission_dim,), 0.1)
+            #     # safe_cov = cov + 1e-4 * jnp.eye(self.emission_dim)
+            #     safe_cov = jnp.diag(variances) + 1e-4 * jnp.eye(self.emission_dim)
+            #     initial_covs.append(safe_cov)
+            # _emission_covs = jnp.array(initial_covs)
+            # print("Af emission_covs", _emission_covs.shape)
 
         elif method.lower() == "prior":
             # TODO: Use an MNIW prior
             key1, key2, key = jr.split(key, 3)
             _emission_weights = 0.01 * jr.normal(key1, (self.num_states, self.emission_dim, self.input_dim))
             _emission_biases = jr.normal(key2, (self.num_states, self.emission_dim))
+            # _emission_covs = 0.1 * jnp.tile(jnp.eye(self.emission_dim), (self.num_states, 1, 1))
             _emission_covs = jnp.tile(jnp.eye(self.emission_dim), (self.num_states, 1, 1))
         else:
             raise Exception("Invalid initialization method: {}".format(method))
@@ -167,6 +205,12 @@ class LinearRegressionHMMEmissions(HMMEmissions):
             sum_xyT = stats['sum_xyT']
             sum_yyT = stats['sum_yyT']
 
+            def _enforce_psd(sigma, jitter=1e-4):
+                # 1. Symmetrize to fix numerical asymmetry
+                sigma_sym = (sigma + sigma.T) / 2
+                # 2. Add diagonal jitter to ensure positive eigenvalues
+                return sigma_sym + jitter * jnp.eye(sigma_sym.shape[-1])
+
             # Make block matrices for stacking features (x) and bias (1)
             sum_x1x1T = jnp.block(
                 [[sum_xxT,                   jnp.expand_dims(sum_x, 1)],
@@ -175,9 +219,16 @@ class LinearRegressionHMMEmissions(HMMEmissions):
             sum_x1yT = jnp.vstack([sum_xyT, sum_y])
 
             # Solve for the optimal A, b, and Sigma
-            Ab = jnp.linalg.solve(sum_x1x1T, sum_x1yT).T
-            Sigma = 1 / sum_w * (sum_yyT - Ab @ sum_x1yT)
-            Sigma = 0.5 * (Sigma + Sigma.T)                 # for numerical stability
+            sum_w_safe = jnp.maximum(sum_w, 1e-8)
+            penalty = (1e-4 * sum_w_safe) + 1e-6
+            reg_matrix = sum_x1x1T + penalty * jnp.eye(sum_x1x1T.shape[0])
+
+            Ab = jnp.linalg.solve(reg_matrix, sum_x1yT).T
+            Sigma = 1 / sum_w_safe * (sum_yyT - Ab @ sum_x1yT)
+            # jax.debug.print('sigma {x}', x=Sigma)
+            Sigma = _enforce_psd(Sigma)
+            # jax.debug.print('Ab {x}', x=Ab[:, :-1])
+
             return Ab[:, :-1], Ab[:, -1], Sigma
 
         emission_stats = pytree_sum(batch_stats, axis=0)
