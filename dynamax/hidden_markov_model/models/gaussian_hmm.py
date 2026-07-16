@@ -164,7 +164,7 @@ class GaussianHMMEmissions(HMMEmissions):
                 niw_posterior = niw_posterior_update(niw_prior, (stats['sum_x'], stats['sum_xxT'], stats['sum_w']))
                 return niw_posterior.mode()
 
-            def _enforce_psd(sigma, jitter=1e-6):
+            def _enforce_psd(sigma, jitter=1e-1):
                 # 1. Symmetrize to fix numerical asymmetry
                 sigma_sym = (sigma + sigma.T) / 2
                 # 2. Add diagonal jitter to ensure positive eigenvalues
