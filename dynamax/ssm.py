@@ -21,7 +21,7 @@ from dynamax.parameters import ParameterSet, PropertySet
 from dynamax.types import PRNGKeyT, Scalar
 from dynamax.utils.optimize import run_sgd
 from dynamax.utils.utils import ensure_array_has_batch_dim
-
+from jax import debug
 
 @runtime_checkable
 class Posterior(Protocol):
@@ -391,14 +391,25 @@ class SSM(ABC):
         batch_emissions = ensure_array_has_batch_dim(emissions, self.emission_shape)
         batch_inputs = ensure_array_has_batch_dim(inputs, self.inputs_shape)
 
+        def print_as_list(i, cov_array):
+            # Because this runs at execution time, cov_array is a concrete array, not a tracer!
+            print(f"onecov{i} = {cov_array.tolist()}\n\n")
+
         @jit
         def em_step(params, m_step_state):
             """Perform one EM step."""
+            # debug.print('m_step{y}', y=params.emissions.covs)
+            # debug.print('m_stepshape{y}', y=params.emissions.covs.shape)
             batch_stats, lls = vmap(partial(self.e_step, params))(batch_emissions, batch_inputs)
             lp = self.log_prior(params) + lls.sum()
             params, m_step_state = self.m_step(params, props, batch_stats, m_step_state)
             # debug.print('e_step: {x}', x=(batch_stats, lls))
-            # debug.print('m_step{y}', y=params)
+            # debug.print('m_step{y}', y=params.emissions.covs)
+            # debug.print('m_stepshape{y}', y=params.emissions.covs.shape)
+            # debug.callback(print_as_list, 0, params.emissions.covs[0])
+            # debug.callback(print_as_list, 1, params.emissions.covs[1])
+            # debug.callback(print_as_list, 2, params.emissions.covs[2])
+            # debug.callback(print_as_list, 3, params.emissions.covs[3])
             return params, m_step_state, lp
 
         log_probs = []
